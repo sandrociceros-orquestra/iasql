@@ -178,13 +178,14 @@ describe('VPC Multi-region Integration Testing', () => {
     DELETE FROM route_table WHERE vpc_id = (SELECT id FROM vpc WHERE tags ->> 'name' = '${prefix}-1');
     DELETE FROM security_group_rule WHERE security_group_id = (SELECT id FROM security_group WHERE vpc_id = (SELECT id FROM vpc WHERE tags ->> 'name' = '${prefix}-1'));
     DELETE FROM security_group WHERE vpc_id = (SELECT id FROM vpc WHERE tags ->> 'name' = '${prefix}-1');
+
     WITH updated_subnet AS (
       UPDATE subnet
       SET region='${region}', availability_zone=(SELECT name FROM availability_zone WHERE region = '${region}' ORDER BY name LIMIT 1)
       WHERE cidr_block='192.${randIPBlock}.0.0/16' AND availability_zone='${nonDefaultRegionAvailabilityZone}' AND region = '${nonDefaultRegion}'
     )
     UPDATE vpc
-    SET region='${region}'
+    SET region='${region}', dhcp_options_id=NULL
     WHERE cidr_block='192.${randIPBlock}.0.0/16' AND state='available' AND tags ->> 'name' = '${prefix}-1' AND region = '${nonDefaultRegion}';
   `,
       undefined,

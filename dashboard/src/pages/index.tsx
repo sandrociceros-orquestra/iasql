@@ -7,6 +7,7 @@ import { ErrorDialog } from '@/components/common';
 import { AppProvider } from '@/components/providers/AppProvider';
 import { useAppConfigContext } from '@/components/providers/ConfigProvider';
 import { Auth0Provider } from '@auth0/auth0-react';
+import logdna from '@logdna/browser';
 
 import * as Posthog from '../services/posthog';
 import * as Sentry from '../services/sentry';
@@ -23,19 +24,21 @@ function handleRageClicking(setIsRageClicking: (arg0: boolean) => void) {
 }
 
 export default function App() {
-  const { config, configError, telemetry, uid, iasqlEnv } = useAppConfigContext();
+  const { config, configError, telemetry, iasqlEnv } = useAppConfigContext();
   const [isRageClicking, setIsRageClicking] = useState(false);
 
   useEffect(() => {
     if (telemetry !== undefined && telemetry === 'on') {
       Sentry.init(config);
       Posthog.init(config);
+      if (config?.logdna?.key) {
+        logdna.init(config.logdna.key, { app: 'dashboard' });
+        logdna.addContext({
+          env: iasqlEnv,
+        });
+      }
     }
-    if (!config?.auth && uid) {
-      Sentry.identify(config, uid);
-      Posthog.identify(config, uid);
-    }
-  }, [telemetry, uid, config]);
+  }, [telemetry, config]);
 
   const body = (
     <AppProvider>

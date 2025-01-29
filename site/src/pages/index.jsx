@@ -1,7 +1,6 @@
 import React from 'react';
 import Layout from '@theme/Layout';
 import ThemedImage from '@theme/ThemedImage';
-import CodeBlock from '@theme/CodeBlock';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
 function BrowserWindow(props) {
@@ -25,7 +24,8 @@ export default function Home() {
           <div className="row">
             <div className="col col--6 padding--lg">
               <h1 className="hero__title">Infrastructure as data in PostgreSQL</h1>
-              <p className="hero__subtitle">Manage and provision cloud infrastructure via a PostgreSQL database</p>
+              <p className="hero__subtitle">Inspect and provision cloud infrastructure via a PostgreSQL database</p>
+              <button className="button button--primary button--lg margin-top--lg" onClick={() => window.location.href="/docs"}>Get started</button>
             </div>
             <div className="col col--6 padding--lg">
               <BrowserWindow>
@@ -33,8 +33,8 @@ export default function Home() {
                   alt="Create EC2 Instance"
                   className='shadow--tl browser-content'
                   sources={{
-                    light: useBaseUrl('/img/ec2-typewriter.gif'),
-                    dark: useBaseUrl('/img/ec2-typewriter_dark.gif'),
+                    light: useBaseUrl('/home/ec2-typewriter.gif'),
+                    dark: useBaseUrl('/home/ec2-typewriter_dark.gif'),
                   }}
                 />
               </BrowserWindow>
@@ -46,15 +46,15 @@ export default function Home() {
         <div className="container">
           <div className="row padding--md text--center">
             <h1 style={{width: '100%'}}>How IaSQL works</h1>
-            <p className="hero__subtitle">IaSQL is open-source software that models cloud infrastructure as data by maintaining a 2-way connection between an AWS account and a PostgreSQL database</p>
+            <p className="hero__subtitle">IaSQL is an open-source developer tool that maintains a 2-way connection between your AWS account and a PostgreSQL database. The rows in the database tables represent the infrastructure in your cloud account.</p>
           </div>
           <div className="text--center">
             <ThemedImage
               alt="Two way connection"
               style={{width: '60%'}}
               sources={{
-                light: useBaseUrl('/img/iasql-connector.gif'),
-                dark: useBaseUrl('/img/iasql-connector_dark.gif'),
+                light: useBaseUrl('/home/iasql-connector.gif'),
+                dark: useBaseUrl('/home/iasql-connector_dark.gif'),
               }}
             />
           </div>
@@ -120,7 +120,7 @@ export default function Home() {
             <h1 style={{width: '100%'}}>Backed by</h1>
           </div>
           <div className="text--center">
-            <img style={{width: '60%'}} src={useBaseUrl('/img/investors.png')}></img>
+            <img style={{width: '60%'}} src={useBaseUrl('/home/investors.png')}></img>
           </div>
         </div>
       </div>
@@ -132,10 +132,10 @@ export default function Home() {
           <div className="row text--center">
             <p className="hero__subtitle col">Drop us a line on Discord if you have any questions!</p>
           </div>
-          <div className="row">
-            <CodeBlock className="language-bash col col--8 col--offset-2">
-              {"docker run --pull=always -p 9876:9876 -p 5432:5432 --name iasql iasql/iasql"}
-            </CodeBlock>
+          <div className="row text--center">
+            <div className="col">
+              <button className="button button--primary button--lg" onClick={() => window.location.href="/docs"}>Get started</button>
+            </div>
           </div>
         </div>
       </div>

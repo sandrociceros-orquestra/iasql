@@ -5,13 +5,13 @@ import { Route as AwsRoute } from '@aws-sdk/client-ec2/dist-types/models';
 
 import { AWS, crudBuilder } from '../../../services/aws_macros';
 import { Context, Crud, IdFields, MapperBase } from '../../interfaces';
-import { Route, RouteTable } from '../entity';
+import { Route, RouteTable, RouteTableAssociation } from '../entity';
 import { AwsVpcModule } from '../index';
 
 export class RouteMapper extends MapperBase<Route> {
   module: AwsVpcModule;
   entity = Route;
-  entityId = (e: Route) => `${e.routeTable.routeTableId ?? e.routeTable.id}|${e.destination}|${e.region}`;
+  entityId = (e: Route) => `${e.routeTable?.routeTableId ?? e.routeTable?.id}|${e.destination}|${e.region}`;
   idFields = (id: string) => {
     const [routeTableId, destination, region] = id.split('|');
     return { routeTableId, destination, region };
@@ -137,29 +137,51 @@ export class RouteMapper extends MapperBase<Route> {
     update: async (es: Route[], ctx: Context) => {
       const out = [];
       for (const e of es) {
-        const cloudRecord: Route = ctx?.memo?.cloud?.Route?.[this.entityId(e)];
-        const client = (await ctx.getAwsClient(e.region)) as AWS;
-        // default route, can't be modified by the user
-        if (cloudRecord.gatewayId === 'local') {
-          cloudRecord.id = e.id;
-          this.module.route.db.update(cloudRecord, ctx);
-          out.push(cloudRecord);
-          continue;
+        if (e.routeTable) {
+          const cloudRecord: Route = ctx?.memo?.cloud?.Route?.[this.entityId(e)];
+          const client = (await ctx.getAwsClient(e.region)) as AWS;
+          // default route, can't be modified by the user
+          if (cloudRecord.gatewayId === 'local') {
+            cloudRecord.id = e.id;
+            this.module.route.db.update(cloudRecord, ctx);
+            out.push(cloudRecord);
+            continue;
+          }
+          // delete and create route
+          await this.deleteRoute(client.ec2client, cloudRecord);
+          await this.createRoute(client.ec2client, e);
+          out.push(e);
         }
-        // delete and create route
-        await this.deleteRoute(client.ec2client, cloudRecord);
-        await this.createRoute(client.ec2client, e);
-        out.push(e);
       }
       return out;
     },
     delete: async (es: Route[], ctx: Context) => {
       for (const e of es) {
-        if (e.gatewayId === 'local' && ctx.memo?.db?.Route?.[this.entityId(e)]) {
-          // created by AWS, can't be deleted by the user but we need to remove it from the memo
-          delete ctx.memo.db.Route[this.entityId(e)];
-          return;
-        } else if (e.gatewayId === 'local') return;
+        if (e.routeTable) {
+          if (e.gatewayId === 'local' && ctx.memo?.db?.Route?.[this.entityId(e)]) {
+            // created by AWS, can't be deleted by the user but we need to remove it from the memo
+            delete ctx.memo.db.Route[this.entityId(e)];
+            return;
+          } else if (e.gatewayId === 'local') return;
+        } else return;
+
+        const associations = (await this.module.routeTableAssociation.cloud.read(
+          ctx,
+        )) as RouteTableAssociation[];
+        if (
+          associations.find(
+            a =>
+              a.isMain &&
+              a.routeTable.routeTableId === e.routeTable.routeTableId &&
+              a.routeTable.vpc.isDefault,
+          )
+        ) {
+          // don't delete routes in the default route table
+          await this.module.route.db.update(e, ctx);
+          // Make absolutely sure it shows up in the memo
+          if (e.routeTable) ctx.memo.db.Route[this.entityId(e)] = e;
+        }
+
         const client = (await ctx.getAwsClient(e.region)) as AWS;
         await this.deleteRoute(client.ec2client, e);
       }

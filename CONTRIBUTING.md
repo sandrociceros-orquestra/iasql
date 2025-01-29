@@ -6,27 +6,6 @@ If you are looking for IaSQL's documentation, go here instead: https://iasql.com
 
 This document is for people who want to contribute to IaSQL. There are multiple ways to contribute to the project other than code, such as reporting bugs, creating feature requests, helping other users in online spaces, Discord etc.
 
-Table of contents
-=================
-
-  * [Get Involved](#get-involved)
-    * [Contributor L1](#contributor-L1)
-    * [Contributor L2](#contributor-L2)
-  * [How IaSQL works](#how-iasql-works)
-  * [How to run IaSQL locally](#how-to-run-iasql-locally)
-  * [How to test IaSQL locally](#how-to-test-iasql-locally)
-    * [Migrations](#migrations)
-  * [How to test IaSQL via CI](#how-to-test-iasql-via-ci)
-    * [Common integration tests](#common-integration)
-    * [Modules](#modules)
-  * [How to release IaSQL via CI](#how-to-release-iasql-via-ci)
-  * [`apply` and `sync` Behavior](#apply-and-sync-behavior)
-    * [Terminology](#terminology)
-    * [Read-Diff-Execute Loop](#read-diff-execute-loop)
-    * [Why does Step 7 exist?](#why-does-step-7-exist?)
-  * [Module Mapper Footguns](#module-mapper-footguns)
-  * [How IaSQL PostgreSQL functions work](#how-iasql-postgresql-functions-work)
-
 ## Get Involved
 
 Anyone can become an IaSQL Contributor regardless of skill level, experience, or background. All types of contributions are meaningful. Our membership system was designed to reflect this.
@@ -175,7 +154,7 @@ Common tests are inside `test/common/` directory. This tests run sequentially an
 
 ### Modules
 
-Modules tests are inside `test/modules/` directory. Currently, every module has a dedicated test account with credentials given via Github Actions secrets and every test run picks an AWS regions within that test account via the [CI setup](https://github.com/iasql/iasql/blob/main/.github/workflows/ci.yml#L84). Modules tests run in parallel with each other but sequentially within each module file and each use a specific account per module to avoid rate limits per account. To add a new test:
+Modules tests are inside `test/modules/` directory. Currently, every module has a dedicated test account with credentials given via Github Actions secrets and every test run picks an AWS regions within that test account via the [CI setup](https://github.com/alantech/iasql/blob/main/.github/workflows/ci.yml#L84). Modules tests run in parallel with each other but sequentially within each module file and each use a specific account per module to avoid rate limits per account. To add a new test:
 
 - Create the test file inside `test/modules`. The current pattern to name the file is `aws-<aws-service>-integration`.
 - Run the tests. It will parallelize the test runs by file.
@@ -184,15 +163,15 @@ Modules tests are inside `test/modules/` directory. Currently, every module has 
 
 ### 1. Release the newest version
 
-Go to ["Version: Release Newest" tab](https://github.com/iasql/iasql/actions/workflows/release.yml) in the repository Actions tab. Then click the "Run Workflow" button to mark the newest version as released.
+Go to ["Version: Release Newest" tab](https://github.com/alantech/iasql/actions/workflows/release.yml) in the repository Actions tab. Then click the "Run Workflow" button to mark the newest version as released.
 
 ### 2. Deploy Production
 
-Go to ["Deploy to Production" tab](https://github.com/iasql/iasql/actions/workflows/production.yml) in the repository Actions tab. Next click the "Run Workflow" button. Then type in the new version number to deploy and finally click the green "Run workflow" button.
+Go to ["Deploy to Production" tab](https://github.com/alantech/iasql/actions/workflows/production.yml) in the repository Actions tab. Next click the "Run Workflow" button. Then type in the new version number to deploy and finally click the green "Run workflow" button.
 
 ### 3. Begin development of the next version
 
-Go to ["Version: Start New Development" tab](https://github.com/iasql/iasql/actions/workflows/release-develop.yml) in the repository Actions tab. Next click the "Run Workflow" button. Then type in the new version number for the next release and finally click the green "Run workflow" button. It will create a commit with that version with a `-beta` appended to it to make it clear this and following commits are not for users to work with directly.
+Go to ["Version: Start New Development" tab](https://github.com/alantech/iasql/actions/workflows/release-develop.yml) in the repository Actions tab. Next click the "Run Workflow" button. Then type in the new version number for the next release and finally click the green "Run workflow" button. It will create a commit with that version with a `-beta` appended to it to make it clear this and following commits are not for users to work with directly.
 
 ### 4. Develop!
 
@@ -238,7 +217,7 @@ This method is the same as commit, with the difference that it runs with a `dryR
 
 ### Read-Diff-Execute Loop (apply and sync)
 
- The [`apply`](https://github.com/iasql/iasql/blob/main/src/modules/iasql_functions/iasql.ts#L859) and [`sync`](https://github.com/iasql/iasql/blob/main/src/modules/iasql_functions/iasql.ts#L1098) functions are very similar dual `do-while` loops that execute the following steps:
+ The [`apply`](https://github.com/alantech/iasql/blob/main/src/modules/iasql_functions/iasql.ts#L859) and [`sync`](https://github.com/alantech/iasql/blob/main/src/modules/iasql_functions/iasql.ts#L1098) functions are very similar dual `do-while` loops that execute the following steps:
 
 1. For every `mapper` provided (it will depend if we are in the first apply phase of the commit where we only have the mappers of the modules that have changes or the second where we will have all of them), load all database records into their associated `entities` using the database `read` function from the `mapper`.
 2. Recreate all possible changes that might have occurred after the current `iasql_commit` started in order to exclude them during this apply execution.

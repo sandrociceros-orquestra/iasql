@@ -1,7 +1,17 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  JoinTable,
+  ManyToMany,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  Unique,
+} from 'typeorm';
 
 import { cloudId } from '../../../services/cloud-id';
 import { AwsRegions } from '../../aws_account/entity';
+import { DhcpOptions } from './dhcp_options';
 
 /**
  * @enum
@@ -116,6 +126,26 @@ export class Vpc {
     nullable: true,
   })
   tags?: { [key: string]: string };
+
+  /**
+   * @public
+   * The set of DHCP options you've associated with the VPC
+   */
+  @ManyToOne(() => DhcpOptions, {
+    eager: true,
+    nullable: true,
+  })
+  @JoinColumn([
+    {
+      name: 'dhcp_options_id',
+      referencedColumnName: 'id',
+    },
+    {
+      name: 'region',
+      referencedColumnName: 'region',
+    },
+  ])
+  dhcpOptions?: DhcpOptions;
 
   /**
    * @public

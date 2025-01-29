@@ -1,4 +1,4 @@
-export type ConfigEnvironments = 'production' | 'staging' | 'local' | 'test' | 'ci' | 'debug';
+export type ConfigEnvironments = 'local' | 'test' | 'ci' | 'debug';
 
 export interface ConfigInterface {
   name: string;
@@ -23,6 +23,10 @@ export interface ConfigInterface {
     environment: string;
     // TODO better type is not allowed, but eventually?
     integrations: [any];
+  };
+  logdna?: {
+    // Not including this sub-object implies it is not enabled
+    key: string;
   };
   // Configuration about which engine to communicate with
   engine: {

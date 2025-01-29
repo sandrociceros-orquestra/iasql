@@ -1,3 +1,5 @@
+import { EC2 } from '@aws-sdk/client-ec2';
+
 import * as iasql from '../../src/services/iasql';
 import {
   defaultRegion,
@@ -28,16 +30,43 @@ const install = runInstall.bind(null, dbAlias);
 const installAll = runInstallAll.bind(null, dbAlias);
 const uninstall = runUninstall.bind(null, dbAlias);
 const region = defaultRegion();
+const accessKeyId = process.env.AWS_ACCESS_KEY_ID ?? '';
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY ?? '';
 const modules = ['aws_security_group', 'aws_rds', 'aws_vpc'];
 
-jest.setTimeout(960000);
-beforeAll(async () => await execComposeUp());
-afterAll(async () => await execComposeDown());
+const ec2client = new EC2({
+  credentials: {
+    accessKeyId,
+    secretAccessKey,
+  },
+  region,
+});
+
+const getAvailabilityZones = async () => {
+  return await ec2client.describeAvailabilityZones({
+    Filters: [
+      {
+        Name: 'region-name',
+        Values: [region],
+      },
+    ],
+  });
+};
 
 let username: string, password: string;
+let availabilityZone: string;
+
+jest.setTimeout(960000);
+beforeAll(async () => {
+  const availabilityZones =
+    (await getAvailabilityZones())?.AvailabilityZones?.map(az => az.ZoneName ?? '') ?? [];
+  availabilityZone = availabilityZones.pop() ?? '';
+  await execComposeUp();
+});
+afterAll(async () => await execComposeDown());
 
 describe('RDS Integration Testing', () => {
-  it('creates a new test db elb', done => {
+  it('creates a new test db', done => {
     (async () => {
       try {
         const { user, password: pgPassword } = await iasql.connect(dbAlias, 'not-needed', 'not-needed');
@@ -91,8 +120,8 @@ describe('RDS Integration Testing', () => {
     query(
       `
     BEGIN;
-      INSERT INTO rds (db_instance_identifier, allocated_storage, db_instance_class, master_username, master_user_password, availability_zone, engine, backup_retention_period)
-        VALUES ('${prefix}test', 20, 'db.t3.micro', 'test', 'testpass', (SELECT name FROM availability_zone WHERE region = '${region}' LIMIT 1), 'postgres:13.4', 0);
+      INSERT INTO rds (db_instance_identifier, allocated_storage, db_instance_class, master_username, master_user_password, availability_zone, engine, engine_version, backup_retention_period, tags)
+        VALUES ('${prefix}test', 20, 'db.t3.micro', 'test', 'testpass2023', (SELECT name FROM availability_zone WHERE region = '${region}' LIMIT 1), 'postgres', '13.4', 0, '{"name":"${prefix}-1"}');
       INSERT INTO rds_security_groups (rds_id, security_group_id) SELECT
         (SELECT id FROM rds WHERE db_instance_identifier='${prefix}test'),
         (SELECT id FROM security_group WHERE group_name='default' AND region = '${region}');
@@ -107,25 +136,25 @@ describe('RDS Integration Testing', () => {
   it('undo changes', rollback());
 
   it(
-    'check adds a new repository',
+    'check adds a new db',
     query(
       `
     SELECT *
     FROM rds
-    WHERE db_instance_identifier = '${prefix}test';
+    WHERE tags ->> 'name' = '${prefix}-1';
   `,
       (res: any[]) => expect(res.length).toBe(0),
     ),
   );
 
   it(
-    'check adds a new repository',
+    'check adds a new db',
     query(
       `
     SELECT *
     FROM rds_security_groups
     INNER JOIN rds ON rds.id = rds_security_groups.rds_id
-    WHERE db_instance_identifier = '${prefix}test';
+    WHERE tags ->> 'name' = '${prefix}-1';
   `,
       (res: any[]) => expect(res.length).toBe(0),
     ),
@@ -138,8 +167,8 @@ describe('RDS Integration Testing', () => {
     query(
       `
     BEGIN;
-      INSERT INTO rds (db_instance_identifier, allocated_storage, db_instance_class, master_username, master_user_password, availability_zone, engine, backup_retention_period)
-        VALUES ('${prefix}test', 20, 'db.t3.micro', 'test', 'testpass', (SELECT name FROM availability_zone WHERE region = '${region}' LIMIT 1), 'postgres:13.4', 0);
+      INSERT INTO rds (db_instance_identifier, allocated_storage, db_instance_class, master_username, master_user_password, availability_zone, engine, engine_version, backup_retention_period, tags)
+        VALUES ('${prefix}test', 20, 'db.t3.micro', 'test', 'testpass2023', (SELECT name FROM availability_zone WHERE region = '${region}' LIMIT 1), 'postgres', '13.4', 0, '{"name":"${prefix}-1"}');
       INSERT INTO rds_security_groups (rds_id, security_group_id) SELECT
         (SELECT id FROM rds WHERE db_instance_identifier='${prefix}test'),
         (SELECT id FROM security_group WHERE group_name='default' AND region = '${region}');
@@ -154,19 +183,19 @@ describe('RDS Integration Testing', () => {
   it('applies the change', commit());
 
   itDocs(
-    'check adds a new repository',
+    'check adds a new db instance',
     query(
       `
     SELECT *
     FROM rds
-    WHERE db_instance_identifier = '${prefix}test';
+    WHERE tags ->> 'name' = '${prefix}-1';
   `,
       (res: any[]) => expect(res.length).toBe(1),
     ),
   );
 
   itDocs(
-    'check adds a new repository',
+    'check security group relationship',
     query(
       `
     SELECT *
@@ -184,7 +213,23 @@ describe('RDS Integration Testing', () => {
     'changes the postgres version',
     query(
       `
-    UPDATE rds SET engine = 'postgres:13.5' WHERE db_instance_identifier = '${prefix}test';
+    UPDATE rds SET engine_version = '13.5' WHERE tags ->> 'name' = '${prefix}-1';
+  `,
+      undefined,
+      true,
+      () => ({ username, password }),
+    ),
+  );
+
+  it('applies the change', commit());
+
+  it('starts a transaction', begin());
+
+  itDocs(
+    'updates RDS tags',
+    query(
+      `
+    UPDATE rds SET tags = '{"name":"${prefix}-2"}' WHERE tags ->> 'name' = '${prefix}-1';
   `,
       undefined,
       true,
@@ -287,7 +332,7 @@ describe('RDS Integration Testing', () => {
       `
     SELECT *
     FROM rds
-    WHERE db_instance_identifier = '${prefix}test';
+    WHERE tags ->> 'name' = '${prefix}-2';
   `,
       (res: any[]) => expect(res.length).toBe(1),
     ),
@@ -312,7 +357,7 @@ describe('RDS Integration Testing', () => {
     query(
       `
     DELETE FROM rds
-    WHERE db_instance_identifier = '${prefix}test';
+    WHERE tags ->> 'name' = '${prefix}-2';
   `,
       undefined,
       true,
@@ -326,7 +371,7 @@ describe('RDS Integration Testing', () => {
       `
     SELECT *
     FROM rds
-    WHERE db_instance_identifier = '${prefix}test';
+    WHERE tags ->> 'name' = '${prefix}-2';
   `,
       (res: any[]) => expect(res.length).toBe(0),
     ),
@@ -340,7 +385,7 @@ describe('RDS Integration Testing', () => {
       `
     SELECT *
     FROM rds
-    WHERE db_instance_identifier = '${prefix}test';
+    WHERE tags ->> 'name' = '${prefix}-2';
   `,
       (res: any[]) => expect(res.length).toBe(0),
     ),
@@ -395,7 +440,7 @@ describe('RDS Integration Testing', () => {
       query(`
       SELECT invoke_rds(
         'createDBCluster',
-        '{"Engine": "aurora", "AvailabilityZone": "us-west-2a", "DBClusterIdentifier": "${prefix}hidden", "MasterUserPassword": "dontcare", "MasterUsername": "dontcare"}',
+        '{"Engine": "aurora", "AvailabilityZone": "${availabilityZone}", "DBClusterIdentifier": "${prefix}hidden", "MasterUserPassword": "dontcare", "MasterUsername": "dontcare"}',
         '${region}'
       );
     `),
